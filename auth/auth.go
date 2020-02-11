@@ -62,7 +62,7 @@ func Signup(ctx *gin.Context) {
 	encrypted, err := hashPassword(body.Password)
 
 	if err != nil {
-		ctx.JSON(http.StatusOK, gin.H{"error": "Failed creating user. Please try again"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed creating user. Please try again"})
 		return
 	}
 	user := body
@@ -93,7 +93,7 @@ func Login(ctx *gin.Context) {
 
 	user, ok := cachedUser.(SignUpRequest)
 
-	// if mapping is fails panic
+	// if mapping fails panic
 	if !ok {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
 		return
