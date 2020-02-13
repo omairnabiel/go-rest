@@ -4,6 +4,8 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/omairnabiel/go-lang-starter/utils"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 )
@@ -28,7 +30,7 @@ func VerifyToken(ctx *gin.Context) {
 
 	// if token in not valid throw UnAuthorized Error
 	if err != nil || !token.Valid {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "Token is not valid"})
+		ctx.JSON(http.StatusUnauthorized, utils.ErrorMessage(http.StatusUnauthorized, utils.ErrTokenNotValid))
 		ctx.Abort()
 		return
 	}

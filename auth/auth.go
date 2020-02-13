@@ -1,13 +1,16 @@
 package auth
 
 import (
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/omairnabiel/go-lang-starter/utils"
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/crypto/bcrypt"
+	"gopkg.in/go-playground/validator.v9"
 )
 
 var goCache *cache.Cache
@@ -18,15 +21,15 @@ var jwtKey = []byte("secret_key")
 
 // SignUpRequest maps to signup payload user sends in request body
 type SignUpRequest struct {
-	Email    string `json:"email"`
-	Name     string `json:"name"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email"`
+	Name     string `json:"name" validate:"required,min=2,max=50"`
+	Password string `json:"password" validate:"required,min=8,max=50"`
 }
 
 // LoginRequest maps to login api call params
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required,min=8,max=50"`
 }
 
 // LoginResponse object to send after successful login of user
@@ -38,16 +41,36 @@ type LoginResponse struct {
 
 // LogoutRequest maps to logout api call params
 type LogoutRequest struct {
-	Email string `json:"email"`
+	Email string `json:"email" validate:"required,email"`
 }
 
 // Signup function to execute on signup route. Checks if user doesn't exist then add the user in the DB
 func Signup(ctx *gin.Context) {
 	var body SignUpRequest
 
+	// initialize a new validator
+	v := validator.New()
+
 	// bind request body to JSON
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, utils.ErrorMessage(http.StatusBadRequest, err.Error()))
+		return
+	}
+
+	// pass the mapped request object to validtor to check it's validity
+	errValid := v.Struct(body)
+
+	// if validation error occurs send error to user
+	if errValid != nil {
+		var errors []string
+		for _, e := range errValid.(validator.ValidationErrors) {
+			log.Println("Errors", e.Field(), e.Tag(), e.Param())
+			errors = append(errors, utils.ValidationMessage(e.Field(), e.Tag(), e.Param()))
+		}
+		var status []int
+		status = append(status, http.StatusBadRequest)
+		ctx.JSON(http.StatusBadRequest, utils.ErrorMessages(status, errors))
+		return
 	}
 
 	// check if user exists in Database (goCache being used as database here)
@@ -55,20 +78,20 @@ func Signup(ctx *gin.Context) {
 
 	// if user already exists notify the user else create the user in Database
 	if found {
-		ctx.JSON(http.StatusConflict, gin.H{"error": "User Already Exists"})
+		ctx.JSON(http.StatusConflict, utils.ErrorMessage(http.StatusConflict, utils.ErrUserExists))
 		return
 	}
 
 	encrypted, err := hashPassword(body.Password)
 
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed creating user. Please try again"})
+		ctx.JSON(http.StatusInternalServerError, utils.ErrorMessage(http.StatusInternalServerError, utils.ErrInternalServerError))
 		return
 	}
 	user := body
 	user.Password = string(encrypted)
 	goCache.Set(body.Email, user, cache.NoExpiration)
-	ctx.JSON(http.StatusOK, gin.H{"success": "User Created Successfully"})
+	ctx.JSON(http.StatusOK, utils.SuccessMessage(http.StatusOK, utils.SuccessUserCreated, nil))
 }
 
 // Login function to execute on signup route. Checks if user doesn't exist then add the user in the DB
@@ -77,9 +100,24 @@ func Login(ctx *gin.Context) {
 
 	// bind request creds to JSON
 	if err := ctx.ShouldBindJSON(&creds); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, utils.ErrorMessage(http.StatusBadRequest, err.Error()))
 	}
 
+	v := validator.New()
+
+	errValid := v.Struct(creds)
+
+	if errValid != nil {
+		var errors []string
+		for _, e := range errValid.(validator.ValidationErrors) {
+			log.Println("Errors", e)
+			errors = append(errors, utils.ValidationMessage(e.Field(), e.Tag(), e.Param()))
+		}
+		var status []int
+		status = append(status, http.StatusBadRequest)
+		ctx.JSON(http.StatusBadRequest, utils.ErrorMessages(status, errors))
+		return
+	}
 	// check if user exists in Database
 	cachedUser, found := goCache.Get(creds.Email)
 
@@ -87,15 +125,15 @@ func Login(ctx *gin.Context) {
 
 	// if user is not found in DB. Throw error and return
 	if !found {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "User doesn't exist. Please signup"})
+		ctx.JSON(http.StatusNotFound, utils.ErrorMessage(http.StatusNotFound, utils.ErrUserDoesntExist))
 		return
 	}
 
 	user, ok := cachedUser.(SignUpRequest)
 
-	// if mapping fails panic
+	// if mapping is fails panic
 	if !ok {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Internal Server Error"})
+		ctx.JSON(http.StatusInternalServerError, utils.ErrorMessage(http.StatusInternalServerError, utils.ErrInternalServerError))
 		return
 	}
 
@@ -103,7 +141,7 @@ func Login(ctx *gin.Context) {
 	passErr := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(creds.Password))
 
 	if passErr != nil {
-		ctx.JSON(http.StatusForbidden, gin.H{"error": "Incorrect Password"})
+		ctx.JSON(http.StatusForbidden, utils.ErrorMessage(http.StatusForbidden, utils.ErrIncorrectPassword))
 		return
 	}
 
@@ -112,13 +150,17 @@ func Login(ctx *gin.Context) {
 
 	// if token generation fails. Throw an error and return
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to login. Please Try Again"})
+		ctx.JSON(http.StatusInternalServerError, utils.ErrorMessage(http.StatusInternalServerError, utils.ErrInternalServerError))
 		return
 	}
 
-	resp := &LoginResponse{Email: creds.Email, Token: token, Name: user.Name}
+	// form a response object
+	var resp interface{}
+	resp = &LoginResponse{Email: creds.Email, Token: token, Name: user.Name}
+
+	// set user token and w.r.t user's email in cache for session
 	sessionCache.Set(creds.Email, token, cache.DefaultExpiration)
-	ctx.JSON(http.StatusOK, gin.H{"user": resp})
+	ctx.JSON(http.StatusOK, utils.SuccessMessage(http.StatusOK, utils.SuccessUserLogin, resp))
 }
 
 // Logout route
@@ -127,7 +169,7 @@ func Logout(ctx *gin.Context) {
 
 	// bind request body to JSON
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, utils.ErrorMessage(http.StatusBadRequest, err.Error()))
 		return
 	}
 
@@ -137,9 +179,9 @@ func Logout(ctx *gin.Context) {
 	// if user is found in session cache logout the use else notify the user that it's already logged out
 	if found {
 		sessionCache.Delete(body.Email)
-		ctx.JSON(http.StatusOK, gin.H{"success": "User logged out successfully"})
+		ctx.JSON(http.StatusOK, utils.SuccessMessage(http.StatusOK, utils.SuccessUserLoggedOut, nil))
 	} else {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "You're already logged out"})
+		ctx.JSON(http.StatusBadRequest, utils.ErrorMessage(http.StatusBadRequest, utils.ErrAlreadyLoggedOut))
 	}
 }
 
@@ -163,8 +205,8 @@ func generateToken(email string) (string, error) {
 	return tokenString, nil
 }
 
-// InitializeCache sets the db and session cache
-func InitializeCache() {
+// init function sets the db and session cache gets called at beginning of the execution
+func init() {
 
 	// initialize cache with default cache retention time of 20 mins and cleanup time 20 mins
 	goCache = cache.New(20*time.Minute, 20*time.Minute)

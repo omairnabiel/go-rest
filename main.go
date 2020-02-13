@@ -8,7 +8,6 @@ import (
 
 func main() {
 
-	auth.InitializeCache()
 	// create new gin router
 	router := gin.New()
 

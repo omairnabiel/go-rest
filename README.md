@@ -18,7 +18,7 @@ These include the user auth on-boarding routes :
 }
 ```
 
-`/login` you can login once a user is created using email and password and returns a JWT Token
+`/login` you can login once a user is created using email and password
 
 `/logout` logout the user with the token you've recieved in the login response. Token is to inserted in Headers Authorization Bearer
 
