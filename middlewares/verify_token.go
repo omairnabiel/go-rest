@@ -2,7 +2,6 @@ package middlewares
 
 import (
 	"net/http"
-	"strings"
 
 	"github.com/omairnabiel/go-lang-starter/utils"
 
@@ -21,10 +20,20 @@ var jwtKey = []byte("secret_key")
 
 // VerifyToken is a middleware verfies the token user sends in the request header
 func VerifyToken(ctx *gin.Context) {
-	// tokenStr gets the extracted token string from the Request Header
+
+	// extract Authorization key value from Header. Returns an array
+	authorization := ctx.Request.Header["Authorization"]
+
+	// if Authorization key has length not equal to 2 throw an error. Because token format is Authorization: [Bearer, "token"]
+	if len(authorization) != 2 {
+		ctx.JSON(http.StatusUnauthorized, utils.ErrorMessage(http.StatusUnauthorized, utils.ErrTokenNotValid))
+		ctx.Abort()
+		return
+	}
 	claims := &JWTClaims{}
-	tokenStr := strings.Fields(ctx.Request.Header["Authorization"][0])[1]
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+
+	// token is on index 1 after the first value Bearer. authorization[1]
+	token, err := jwt.ParseWithClaims(authorization[1], claims, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
 	})
 
