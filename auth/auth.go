@@ -7,6 +7,7 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"github.com/omairnabiel/go-lang-starter/models"
 	"github.com/omairnabiel/go-lang-starter/utils"
 	"github.com/patrickmn/go-cache"
 	"golang.org/x/crypto/bcrypt"
@@ -19,34 +20,9 @@ var sessionCache *cache.Cache
 // Will get this from environment variables in real world application
 var jwtKey = []byte("secret_key")
 
-// SignUpRequest maps to signup payload user sends in request body
-type SignUpRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Name     string `json:"name" validate:"required,min=2,max=50"`
-	Password string `json:"password" validate:"required,min=8,max=50"`
-}
-
-// LoginRequest maps to login api call params
-type LoginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8,max=50"`
-}
-
-// LoginResponse object to send after successful login of user
-type LoginResponse struct {
-	Email string `json:"email"`
-	Name  string `json:"name"`
-	Token string `json:"token"`
-}
-
-// LogoutRequest maps to logout api call params
-type LogoutRequest struct {
-	Email string `json:"email" validate:"required,email"`
-}
-
 // Signup function to execute on signup route. Checks if user doesn't exist then add the user in the DB
 func Signup(ctx *gin.Context) {
-	var body SignUpRequest
+	var body models.SignUpRequest
 
 	// initialize a new validator
 	v := validator.New()
@@ -58,12 +34,12 @@ func Signup(ctx *gin.Context) {
 	}
 
 	// pass the mapped request object to validtor to check it's validity
-	errValid := v.Struct(body)
+	err := v.Struct(body)
 
 	// if validation error occurs send error to user
-	if errValid != nil {
+	if err != nil {
 		var errors []string
-		for _, e := range errValid.(validator.ValidationErrors) {
+		for _, e := range err.(validator.ValidationErrors) {
 			log.Println("Errors", e.Field(), e.Tag(), e.Param())
 			errors = append(errors, utils.ValidationMessage(e.Field(), e.Tag(), e.Param()))
 		}
@@ -96,7 +72,7 @@ func Signup(ctx *gin.Context) {
 
 // Login function to execute on signup route. Checks if user doesn't exist then add the user in the DB
 func Login(ctx *gin.Context) {
-	var creds LoginRequest
+	var creds models.LoginRequest
 
 	// bind request creds to JSON
 	if err := ctx.ShouldBindJSON(&creds); err != nil {
@@ -129,7 +105,7 @@ func Login(ctx *gin.Context) {
 		return
 	}
 
-	user, ok := cachedUser.(SignUpRequest)
+	user, ok := cachedUser.(models.SignUpRequest)
 
 	// if mapping is fails panic
 	if !ok {
@@ -156,7 +132,7 @@ func Login(ctx *gin.Context) {
 
 	// form a response object
 	var resp interface{}
-	resp = &LoginResponse{Email: creds.Email, Token: token, Name: user.Name}
+	resp = &models.LoginResponse{Email: creds.Email, Token: token, Name: user.Name}
 
 	// set user token and w.r.t user's email in cache for session
 	sessionCache.Set(creds.Email, token, cache.DefaultExpiration)
@@ -165,7 +141,7 @@ func Login(ctx *gin.Context) {
 
 // Logout route
 func Logout(ctx *gin.Context) {
-	var body LogoutRequest
+	var body models.LogoutRequest
 
 	// bind request body to JSON
 	if err := ctx.ShouldBindJSON(&body); err != nil {
