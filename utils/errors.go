@@ -78,6 +78,6 @@ var (
 	// ErrAlreadyLoggedOut message
 	ErrAlreadyLoggedOut = "You're already logged out"
 
-	// ErrTokenNotValid
+	// ErrTokenNotValid message
 	ErrTokenNotValid = "Token in not valid!"
 )

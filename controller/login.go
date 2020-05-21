@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/omairnabiel/go-lang-starter/cache"
 	"github.com/omairnabiel/go-lang-starter/helpers"
 	"github.com/omairnabiel/go-lang-starter/utils"
 	"golang.org/x/crypto/bcrypt"
@@ -30,6 +31,7 @@ func Login(ctx *gin.Context) {
 
 	if err := ctx.ShouldBindJSON(&creds); err != nil {
 		ctx.JSON(http.StatusBadRequest, utils.ErrorMessage(http.StatusBadRequest, err.Error()))
+		return
 	}
 
 	v := validator.New()
@@ -48,21 +50,20 @@ func Login(ctx *gin.Context) {
 		return
 	}
 
-	cachedUser, found := goCache.Get(creds.Email)
-
-	if !found {
+	redisErr := cache.Redis.Set(cache.Redis.Context(), "user", "Value", 0).Err()
+	if redisErr != nil {
 		ctx.JSON(http.StatusNotFound, utils.ErrorMessage(http.StatusNotFound, utils.ErrUserDoesntExist))
 		return
 	}
 
-	user, ok := cachedUser.(SignUpRequest)
+	cachedUser, found := cache.Redis.Get(cache.Redis.Context(), "user").Result()
 
-	if !ok {
-		ctx.JSON(http.StatusInternalServerError, utils.ErrorMessage(http.StatusInternalServerError, utils.ErrInternalServerError))
+	if found != nil {
+		ctx.JSON(http.StatusNotFound, utils.ErrorMessage(http.StatusNotFound, utils.ErrUserDoesntExist))
 		return
 	}
 
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(creds.Password))
+	err := bcrypt.CompareHashAndPassword([]byte(cachedUser), []byte(creds.Password))
 
 	if err != nil {
 		ctx.JSON(http.StatusForbidden, utils.ErrorMessage(http.StatusForbidden, utils.ErrIncorrectPassword))
@@ -77,7 +78,7 @@ func Login(ctx *gin.Context) {
 	}
 
 	var resp interface{}
-	resp = &LoginResponse{Email: creds.Email, Token: token, Name: user.Name}
+	resp = &LoginResponse{Email: creds.Email, Token: token, Name: "user.Name"}
 
 	ctx.JSON(http.StatusOK, utils.SuccessMessage(http.StatusOK, utils.SuccessUserLogin, resp))
 }

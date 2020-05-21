@@ -2,8 +2,11 @@ package main
 
 import (
 	"github.com/gin-gonic/gin"
-	controller "github.com/omairnabiel/go-lang-starter/controller"
-	middlewares "github.com/omairnabiel/go-lang-starter/middlewares"
+	_ "github.com/lib/pq"                            // postgres driver
+	_ "github.com/omairnabiel/go-lang-starter/cache" // initialize cache
+	"github.com/omairnabiel/go-lang-starter/controller"
+	_ "github.com/omairnabiel/go-lang-starter/db" // initialize db
+	"github.com/omairnabiel/go-lang-starter/middlewares"
 )
 
 func main() {
