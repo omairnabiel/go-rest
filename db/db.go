@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	db, err := sql.Open("postgres", "host=localhost dbname=postgres user=postgres password=postgres")
+	db, err := sql.Open("postgres", "host=localhost dbname=postgres user=postgres password=postgres sslmode=disable")
 	if err != nil {
 		panic(err)
 	}
@@ -17,5 +17,4 @@ func init() {
 		panic(err)
 	}
 	boil.SetDB(db)
-
 }

@@ -7,6 +7,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// JWTClaims inherited with standard claims
+type JWTClaims struct {
+	Email  string `json:"email"`
+	UserID int    `json:"userId"`
+	jwt.StandardClaims
+}
+
 var jwtKey = []byte("secret_key")
 
 // HashPassword hashes the the given password
@@ -18,15 +25,16 @@ func HashPassword(password string) ([]byte, error) {
 	return encrypted, nil
 }
 
-// GenerateToken takes user info as argument and generates the token
-func GenerateToken(email string) (string, error) {
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.MapClaims{
+// GenerateToken returns an access and refresh token (accessToken, refreshToken, error)
+func GenerateToken(email string) (accessToken string, refreshToken string, err error) {
+	accessToken, err = jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.MapClaims{
 		"email":     email,
-		"ExpiresAt": time.Now().Unix(),
-	})
-	tokenString, err := token.SignedString(jwtKey)
-	if err != nil {
-		return "", err
-	}
-	return tokenString, nil
+		"ExpiresAt": (time.Now().Add(time.Minute * 15).Unix()),
+	}).SignedString(jwtKey)
+
+	refreshToken, err = jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.MapClaims{
+		"email":     email,
+		"ExpiresAt": time.Now().Add(time.Hour * 48).Unix(),
+	}).SignedString(jwtKey)
+	return
 }

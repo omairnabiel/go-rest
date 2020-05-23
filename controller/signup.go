@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/omairnabiel/go-lang-starter/helpers"
-	"github.com/omairnabiel/go-lang-starter/utils"
 	"gopkg.in/go-playground/validator.v9"
 )
 
@@ -24,7 +23,7 @@ func Signup(ctx *gin.Context) {
 	v := validator.New()
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, utils.ErrorMessage(http.StatusBadRequest, err.Error()))
+		ctx.JSON(http.StatusBadRequest, helpers.ErrorMessage(http.StatusBadRequest, err.Error()))
 		return
 	}
 
@@ -34,21 +33,21 @@ func Signup(ctx *gin.Context) {
 		var errors []string
 		for _, e := range err.(validator.ValidationErrors) {
 			log.Println("Errors", e.Field(), e.Tag(), e.Param())
-			errors = append(errors, utils.ValidationMessage(e.Field(), e.Tag(), e.Param()))
+			errors = append(errors, helpers.ValidationMessage(e.Field(), e.Tag(), e.Param()))
 		}
 		var status []int
 		status = append(status, http.StatusBadRequest)
-		ctx.JSON(http.StatusBadRequest, utils.ErrorMessages(status, errors))
+		ctx.JSON(http.StatusBadRequest, helpers.ErrorMessages(status, errors))
 		return
 	}
 
 	encrypted, err := helpers.HashPassword(body.Password)
 
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, utils.ErrorMessage(http.StatusInternalServerError, utils.ErrInternalServerError))
+		ctx.JSON(http.StatusInternalServerError, helpers.ErrorMessage(http.StatusInternalServerError, helpers.ErrInternalServerError))
 		return
 	}
 	user := body
 	user.Password = string(encrypted)
-	ctx.JSON(http.StatusOK, utils.SuccessMessage(http.StatusOK, utils.SuccessUserCreated, nil))
+	ctx.JSON(http.StatusOK, helpers.SuccessMessage(http.StatusOK, helpers.SuccessUserCreated, nil))
 }
